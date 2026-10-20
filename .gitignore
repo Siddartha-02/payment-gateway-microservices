@@ -1,8 +1,8 @@
 # Binaries
-merchant-service
-payment-service
-ledger-service
 *.exe
+services/merchant-service/merchant-service
+services/payment-service/payment-service
+services/ledger-service/ledger-service
 
 # Keys and logs
 *.pem
