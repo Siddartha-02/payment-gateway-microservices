@@ -1,0 +1,11 @@
+# Binaries
+merchant-service
+payment-service
+ledger-service
+*.exe
+
+# Keys and logs
+*.pem
+*.key
+*.log
+.env

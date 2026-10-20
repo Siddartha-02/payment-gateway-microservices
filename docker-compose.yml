@@ -1,0 +1,63 @@
+services:
+  dashboard:
+    build:
+      context: ./services/dashboard
+      dockerfile: Dockerfile
+    container_name: pg-dashboard-ui
+    ports:
+      - "8080:80"
+    depends_on:
+      - merchant-service
+      - payment-service
+      - ledger-service
+    networks:
+      - payment-net
+    restart: unless-stopped
+
+  merchant-service:
+    build:
+      context: ./services/merchant-service
+      dockerfile: Dockerfile
+    container_name: pg-merchant-service
+    ports:
+      - "8081:8081"
+    environment:
+      - PORT=8081
+    networks:
+      - payment-net
+    restart: unless-stopped
+
+  payment-service:
+    build:
+      context: ./services/payment-service
+      dockerfile: Dockerfile
+    container_name: pg-payment-service
+    ports:
+      - "8082:8082"
+    environment:
+      - PORT=8082
+      - MERCHANT_SERVICE_URL=http://merchant-service:8081
+      - LEDGER_SERVICE_URL=http://ledger-service:8083
+    depends_on:
+      - merchant-service
+      - ledger-service
+    networks:
+      - payment-net
+    restart: unless-stopped
+
+  ledger-service:
+    build:
+      context: ./services/ledger-service
+      dockerfile: Dockerfile
+    container_name: pg-ledger-service
+    ports:
+      - "8083:8083"
+    environment:
+      - PORT=8083
+    networks:
+      - payment-net
+    restart: unless-stopped
+
+networks:
+  payment-net:
+    driver: bridge

@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ApexPay - Microservices Payment Gateway</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    code, pre { font-family: 'JetBrains Mono', monospace; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased">
+
+  <!-- Top Navbar -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-violet-600 to-indigo-500 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/20">
+          ⚡
+        </div>
+        <div>
+          <span class="text-lg font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">ApexPay</span>
+          <span class="text-xs ml-2 px-2 py-0.5 rounded-full bg-violet-950 text-violet-300 border border-violet-800 font-mono">FINTECH GATEWAY</span>
+        </div>
+      </div>
+      <div class="flex items-center space-x-4">
+        <div class="flex items-center space-x-2 text-xs text-slate-400 bg-slate-800/80 px-3 py-1.5 rounded-full border border-slate-700">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>Docker Cluster: Live</span>
+        </div>
+        <button onclick="refreshAll()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg border border-slate-700 transition flex items-center space-x-1">
+          <span>🔄</span>
+          <span>Sync Data</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Merchant Banner Bar -->
+  <div class="bg-indigo-950/40 border-b border-indigo-900/50 py-2.5 px-4">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between text-xs gap-3">
+      <div class="flex items-center space-x-2">
+        <span class="text-slate-400">Active Merchant:</span>
+        <span id="activeMerchantName" class="font-semibold text-indigo-300">Loading...</span>
+        <span id="activeMerchantId" class="text-slate-400 font-mono"></span>
+      </div>
+      <div class="flex items-center space-x-3 font-mono">
+        <span class="text-slate-400">API Key:</span>
+        <span id="activeApiKey" class="text-emerald-400 bg-slate-900 px-2 py-1 rounded border border-slate-800">sk_live_...</span>
+        <button onclick="copyApiKey()" class="text-slate-400 hover:text-white underline">Copy</button>
+      </div>
+    </div>
+  </div>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 space-y-8">
+    
+    <!-- Microservices Topology & Live Health Monitor -->
+    <div>
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-2">
+          <span>Active Microservices Mesh (3 Services Live)</span>
+        </h2>
+        <span class="text-[11px] text-slate-500 font-mono">Heartbeat: Every 5s</span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- Merchant Service -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between hover:border-slate-700 transition">
+          <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-sm">
+              🔑
+            </div>
+            <div>
+              <div class="text-xs font-bold text-white flex items-center space-x-2">
+                <span>merchant-service</span>
+                <span class="text-[10px] font-mono px-1.5 py-0.2 bg-slate-800 text-slate-400 rounded">:8081</span>
+              </div>
+              <div class="text-[11px] text-slate-400">Identity & Key Auth</div>
+            </div>
+          </div>
+          <div class="text-right">
+            <span id="badgeMerchantSvc" class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1 animate-pulse"></span>
+              200 OK
+            </span>
+            <div id="pingMerchantSvc" class="text-[10px] text-slate-500 font-mono mt-0.5">-- ms</div>
+          </div>
+        </div>
+
+        <!-- Payment Service -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between hover:border-slate-700 transition">
+          <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-sm">
+              💳
+            </div>
+            <div>
+              <div class="text-xs font-bold text-white flex items-center space-x-2">
+                <span>payment-service</span>
+                <span class="text-[10px] font-mono px-1.5 py-0.2 bg-slate-800 text-slate-400 rounded">:8082</span>
+              </div>
+              <div class="text-[11px] text-slate-400">Engine & Idempotency</div>
+            </div>
+          </div>
+          <div class="text-right">
+            <span id="badgePaymentSvc" class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1 animate-pulse"></span>
+              200 OK
+            </span>
+            <div id="pingPaymentSvc" class="text-[10px] text-slate-500 font-mono mt-0.5">-- ms</div>
+          </div>
+        </div>
+
+        <!-- Ledger Service -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between hover:border-slate-700 transition">
+          <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-sm">
+              ⚖️
+            </div>
+            <div>
+              <div class="text-xs font-bold text-white flex items-center space-x-2">
+                <span>ledger-service</span>
+                <span class="text-[10px] font-mono px-1.5 py-0.2 bg-slate-800 text-slate-400 rounded">:8083</span>
+              </div>
+              <div class="text-[11px] text-slate-400">Double-Entry & Audit</div>
+            </div>
+          </div>
+          <div class="text-right">
+            <span id="badgeLedgerSvc" class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1 animate-pulse"></span>
+              200 OK
+            </span>
+            <div id="pingLedgerSvc" class="text-[10px] text-slate-500 font-mono mt-0.5">-- ms</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI Summary Row -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-5 shadow-sm">
+        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">Gross Volume</div>
+        <div id="kpiGrossVolume" class="text-2xl font-bold text-white mt-2">$0.00</div>
+        <div class="text-xs text-emerald-400 mt-1 flex items-center">Captured via Gateway</div>
+      </div>
+
+      <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-5 shadow-sm">
+        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">Merchant Net Payout</div>
+        <div id="kpiMerchantNet" class="text-2xl font-bold text-indigo-400 mt-2">$0.00</div>
+        <div class="text-xs text-slate-400 mt-1">Net of processing fees</div>
+      </div>
+
+      <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-5 shadow-sm">
+        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">Platform Revenue</div>
+        <div id="kpiPlatformFee" class="text-2xl font-bold text-emerald-400 mt-2">$0.00</div>
+        <div class="text-xs text-slate-400 mt-1">2.9% + $0.30 per charge</div>
+      </div>
+
+      <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-5 shadow-sm">
+        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">Transactions</div>
+        <div id="kpiTxCount" class="text-2xl font-bold text-white mt-2">0</div>
+        <div id="kpiSuccessRate" class="text-xs text-slate-400 mt-1">0 Successful</div>
+      </div>
+    </div>
+
+    <!-- Main Grid: Checkout Simulator & Transaction History -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      
+      <!-- Left Column: Checkout Terminal (5 cols) -->
+      <div class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+          <div>
+            <h2 class="text-base font-semibold text-white">Virtual Payment Terminal</h2>
+            <p class="text-xs text-slate-400">Simulate incoming customer charges</p>
+          </div>
+          <span class="text-xl">💳</span>
+        </div>
+
+        <form id="paymentForm" onsubmit="handlePaymentSubmit(event)" class="space-y-4">
+          <!-- Amount & Currency -->
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Charge Amount ($ USD)</label>
+            <div class="relative rounded-lg shadow-sm">
+              <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                <span class="text-slate-500 font-mono text-sm">$</span>
+              </div>
+              <input type="number" step="0.01" min="1.00" id="chargeAmount" value="75.00" required
+                class="w-full rounded-lg bg-slate-950 border border-slate-700 pl-7 pr-12 py-2.5 text-sm text-white font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none">
+              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                <span class="text-slate-500 text-xs">USD</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Test Card Picker -->
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Select Test Payment Method</label>
+            <select id="paymentMethod" class="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2.5 text-sm text-slate-200 outline-none focus:border-indigo-500">
+              <option value="pm_card_visa_4242">Visa ending 4242 (Instant Capture - Success)</option>
+              <option value="pm_card_mastercard_5555">Mastercard ending 5555 (Instant Capture - Success)</option>
+              <option value="pm_card_declined_0000">Card ending 0000 (Simulated Decline - Insufficient Funds)</option>
+            </select>
+          </div>
+
+          <!-- Description -->
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Order Description</label>
+            <input type="text" id="orderDescription" value="Order #1042 - Software Subscription" required
+              class="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-200 outline-none focus:border-indigo-500">
+          </div>
+
+          <!-- Idempotency Key Section -->
+          <div class="bg-slate-950/70 p-3 rounded-lg border border-slate-800 space-y-2">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-medium text-slate-300">Idempotency Key</label>
+              <button type="button" onclick="regenerateIdempKey()" class="text-[11px] text-indigo-400 hover:text-indigo-300 font-mono">
+                🎲 New Key
+              </button>
+            </div>
+            <input type="text" id="idempotencyKey" readonly
+              class="w-full rounded bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-xs text-slate-300 font-mono outline-none">
+            <p class="text-[11px] text-slate-500">Submitting the same key twice tests duplicate charge prevention.</p>
+          </div>
+
+          <button type="submit" id="btnSubmitPayment"
+            class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2.5 px-4 rounded-lg transition duration-150 shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-2 text-sm">
+            <span>⚡ Authorize & Charge</span>
+          </button>
+        </form>
+
+        <!-- Response Console Drawer -->
+        <div id="paymentResult" class="hidden rounded-lg bg-slate-950 border border-slate-800 p-4 space-y-2">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-semibold text-slate-300">Gateway Response</span>
+            <span id="resultBadge" class="px-2 py-0.5 rounded text-[10px] font-bold"></span>
+          </div>
+          <pre id="resultJson" class="text-[11px] text-slate-300 bg-slate-900 p-2.5 rounded overflow-x-auto border border-slate-800 max-h-40"></pre>
+        </div>
+      </div>
+
+      <!-- Right Column: Transactions & Ledger Audit (7 cols) -->
+      <div class="lg:col-span-7 space-y-8">
+        
+        <!-- Live Transactions Table -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+            <div>
+              <h2 class="text-base font-semibold text-white">Transaction Ledger</h2>
+              <p class="text-xs text-slate-400">Real-time payment records & one-click refunds</p>
+            </div>
+            <button onclick="loadPayments()" class="text-xs text-indigo-400 hover:text-indigo-300 font-medium">Refresh</button>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="bg-slate-950/80 text-slate-400 uppercase font-mono text-[10px] border-b border-slate-800">
+                <tr>
+                  <th class="py-2.5 px-3">Payment ID</th>
+                  <th class="py-2.5 px-3">Amount</th>
+                  <th class="py-2.5 px-3">Card</th>
+                  <th class="py-2.5 px-3">Status</th>
+                  <th class="py-2.5 px-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody id="paymentsTableBody" class="divide-y divide-slate-800 font-mono">
+                <tr>
+                  <td colspan="5" class="py-6 text-center text-slate-500">Loading payments...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Double Entry Ledger & Cryptographic Hash Chain -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+            <div>
+              <h2 class="text-base font-semibold text-white">Double-Entry Cryptographic Audit Chain</h2>
+              <p class="text-xs text-slate-400">Immutable financial journal with SHA-256 blocks</p>
+            </div>
+            <button onclick="loadLedger()" class="text-xs text-indigo-400 hover:text-indigo-300 font-medium">Audit Sync</button>
+          </div>
+
+          <div id="ledgerEntriesContainer" class="space-y-3 max-h-72 overflow-y-auto pr-1">
+            <div class="text-xs text-slate-500 text-center py-4">Loading audit logs...</div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-900 bg-slate-950 py-4 text-center text-xs text-slate-600">
+    ApexPay Fintech Microservices • Go • Docker • Kubernetes • SHA-256 Double-Entry Ledger
+  </footer>
+
+  <!-- Application Logic -->
+  <script>
+    let currentMerchant = null;
+
+    async function init() {
+      regenerateIdempKey();
+      await ensureMerchant();
+      await refreshAll();
+      setInterval(refreshAll, 6000);
+    }
+
+    function regenerateIdempKey() {
+      document.getElementById('idempotencyKey').value = 'idemp_' + Math.random().toString(36).substring(2, 12);
+    }
+
+    async function ensureMerchant() {
+      try {
+        const res = await fetch('/api/v1/merchants');
+        const merchants = await res.json();
+        if (merchants && merchants.length > 0) {
+          currentMerchant = merchants[0];
+        } else {
+          // Create default merchant
+          const createRes = await fetch('/api/v1/merchants', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: 'Apex Storefront Inc.', email: 'billing@apexstore.io', currency: 'USD' })
+          });
+          currentMerchant = await createRes.json();
+        }
+
+        document.getElementById('activeMerchantName').innerText = currentMerchant.name;
+        document.getElementById('activeMerchantId').innerText = '(' + currentMerchant.id + ')';
+        document.getElementById('activeApiKey').innerText = currentMerchant.api_key;
+      } catch (e) {
+        console.error("Merchant setup error:", e);
+      }
+    }
+
+    function copyApiKey() {
+      if (currentMerchant && currentMerchant.api_key) {
+        navigator.clipboard.writeText(currentMerchant.api_key);
+        alert('API Key copied to clipboard!');
+      }
+    }
+
+    async function refreshAll() {
+      await Promise.all([pingServices(), loadPayments(), loadLedger()]);
+    }
+
+    async function pingServices() {
+      const targets = [
+        { url: '/health/merchant', badgeId: 'badgeMerchantSvc', pingId: 'pingMerchantSvc' },
+        { url: '/health/payment', badgeId: 'badgePaymentSvc', pingId: 'pingPaymentSvc' },
+        { url: '/health/ledger', badgeId: 'badgeLedgerSvc', pingId: 'pingLedgerSvc' }
+      ];
+
+      for (const t of targets) {
+        const start = performance.now();
+        try {
+          const res = await fetch(t.url);
+          const elapsed = Math.round(performance.now() - start);
+          const badge = document.getElementById(t.badgeId);
+          const ping = document.getElementById(t.pingId);
+
+          if (res.ok) {
+            badge.className = 'inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800';
+            badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1 animate-pulse"></span>200 OK';
+            ping.innerText = `${elapsed} ms`;
+          } else {
+            badge.className = 'inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-950 text-rose-400 border border-rose-800';
+            badge.innerText = `${res.status} ERR`;
+            ping.innerText = 'offline';
+          }
+        } catch (e) {
+          const badge = document.getElementById(t.badgeId);
+          badge.className = 'inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-950 text-rose-400 border border-rose-800';
+          badge.innerText = 'OFFLINE';
+          document.getElementById(t.pingId).innerText = 'failed';
+        }
+      }
+    }
+
+    async function loadPayments() {
+      try {
+        const res = await fetch('/api/v1/payments');
+        const payments = await res.json();
+        const tbody = document.getElementById('paymentsTableBody');
+
+        if (!payments || payments.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" class="py-6 text-center text-slate-500">No transactions recorded yet</td></tr>';
+          return;
+        }
+
+        // Calculate KPI values
+        let grossVolume = 0;
+        let successfulCount = 0;
+
+        tbody.innerHTML = payments.map(p => {
+          const isCaptured = p.status === 'CAPTURED';
+          const isFailed = p.status === 'FAILED';
+          const isRefunded = p.status === 'REFUNDED';
+
+          if (isCaptured) {
+            grossVolume += p.amount;
+            successfulCount++;
+          }
+
+          let badgeClass = 'bg-emerald-950 text-emerald-400 border-emerald-800';
+          if (isFailed) badgeClass = 'bg-rose-950 text-rose-400 border-rose-800';
+          if (isRefunded) badgeClass = 'bg-amber-950 text-amber-400 border-amber-800';
+
+          const formattedAmount = '$' + (p.amount / 100).toFixed(2);
+          const refundBtn = isCaptured ? 
+            `<button onclick="refundPayment('${p.id}')" class="text-rose-400 hover:text-rose-300 underline text-[11px]">Refund</button>` : 
+            `<span class="text-slate-600">-</span>`;
+
+          return `
+            <tr class="hover:bg-slate-800/40 transition">
+              <td class="py-3 px-3 text-indigo-300">${p.id}</td>
+              <td class="py-3 px-3 font-semibold text-white">${formattedAmount}</td>
+              <td class="py-3 px-3 text-slate-400 text-[11px]">${p.payment_method.replace('pm_card_', '')}</td>
+              <td class="py-3 px-3">
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${badgeClass}">${p.status}</span>
+              </td>
+              <td class="py-3 px-3 text-right">${refundBtn}</td>
+            </tr>
+          `;
+        }).join('');
+
+        document.getElementById('kpiGrossVolume').innerText = '$' + (grossVolume / 100).toFixed(2);
+        document.getElementById('kpiTxCount').innerText = payments.length;
+        document.getElementById('kpiSuccessRate').innerText = `${successfulCount} Successful`;
+      } catch (e) {
+        console.error("Failed loading payments:", e);
+      }
+    }
+
+    async function loadLedger() {
+      try {
+        const [accRes, auditRes] = await Promise.all([
+          fetch('/api/v1/ledger/accounts'),
+          fetch('/api/v1/ledger/audit')
+        ]);
+        const accounts = await accRes.json();
+        const audit = await auditRes.json();
+
+        // Update balances in KPI
+        if (currentMerchant) {
+          const mKey = 'merchant:' + currentMerchant.id;
+          if (accounts[mKey]) {
+            document.getElementById('kpiMerchantNet').innerText = accounts[mKey].balance_formatted;
+          }
+        }
+        if (accounts['platform:revenue']) {
+          document.getElementById('kpiPlatformFee').innerText = accounts['platform:revenue'].balance_formatted;
+        }
+
+        // Render Audit Chain
+        const container = document.getElementById('ledgerEntriesContainer');
+        if (!audit.entries || audit.entries.length === 0) {
+          container.innerHTML = '<div class="text-xs text-slate-500 text-center py-4">No ledger journal entries yet.</div>';
+          return;
+        }
+
+        container.innerHTML = audit.entries.slice().reverse().map(e => {
+          return `
+            <div class="bg-slate-950 p-3 rounded-lg border border-slate-800/80 font-mono text-xs space-y-1.5">
+              <div class="flex items-center justify-between text-[11px]">
+                <span class="text-indigo-400 font-semibold">${e.id} &bull; ${e.description}</span>
+                <span class="text-slate-500">${new Date(e.timestamp).toLocaleTimeString()}</span>
+              </div>
+              <div class="text-[10px] text-slate-400 break-all">
+                <span class="text-slate-600">SHA-256:</span> ${e.hash}
+              </div>
+              <div class="flex flex-wrap gap-2 pt-1">
+                ${e.postings.map(p => {
+                  const isDebit = p.direction === 'DEBIT';
+                  const clr = isDebit ? 'text-amber-400' : 'text-emerald-400';
+                  return `<span class="bg-slate-900 px-2 py-0.5 rounded border border-slate-800 text-[10px]">
+                    ${p.account_id}: <strong class="${clr}">${p.direction} $${(p.amount / 100).toFixed(2)}</strong>
+                  </span>`;
+                }).join('')}
+              </div>
+            </div>
+          `;
+        }).join('');
+
+      } catch (e) {
+        console.error("Failed loading ledger:", e);
+      }
+    }
+
+    async function handlePaymentSubmit(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btnSubmitPayment');
+      btn.disabled = true;
+      btn.innerText = 'Authorizing...';
+
+      const amountDollars = parseFloat(document.getElementById('chargeAmount').value);
+      const amountCents = Math.round(amountDollars * 100);
+      const paymentMethod = document.getElementById('paymentMethod').value;
+      const description = document.getElementById('orderDescription').value;
+      const idempotencyKey = document.getElementById('idempotencyKey').value;
+      const apiKey = currentMerchant ? currentMerchant.api_key : '';
+
+      try {
+        const res = await fetch('/api/v1/payments/charge', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': apiKey,
+            'Idempotency-Key': idempotencyKey
+          },
+          body: JSON.stringify({
+            amount: amountCents,
+            currency: 'USD',
+            payment_method: paymentMethod,
+            description: description,
+            merchant_id: currentMerchant ? currentMerchant.id : undefined
+          })
+        });
+
+        const cacheHeader = res.headers.get('X-Cache-Lookup') || 'MISS';
+        const data = await res.json();
+
+        const resultDrawer = document.getElementById('paymentResult');
+        const badge = document.getElementById('resultBadge');
+        const jsonBlock = document.getElementById('resultJson');
+
+        resultDrawer.classList.remove('hidden');
+        if (data.status === 'CAPTURED') {
+          badge.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800';
+          badge.innerText = `CAPTURED (Cache: ${cacheHeader})`;
+        } else {
+          badge.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-rose-950 text-rose-400 border border-rose-800';
+          badge.innerText = `DECLINED (Cache: ${cacheHeader})`;
+        }
+        jsonBlock.innerText = JSON.stringify(data, null, 2);
+
+        await refreshAll();
+      } catch (err) {
+        alert("Payment error: " + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = '⚡ Authorize & Charge';
+      }
+    }
+
+    async function refundPayment(paymentId) {
+      if (!confirm(`Are you sure you want to refund payment ${paymentId}?`)) return;
+      try {
+        const res = await fetch(`/api/v1/payments/${paymentId}/refund`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: 'customer_dashboard_request' })
+        });
+        if (res.ok) {
+          alert(`Payment ${paymentId} refunded successfully!`);
+          await refreshAll();
+        } else {
+          const err = await res.text();
+          alert('Refund failed: ' + err);
+        }
+      } catch (e) {
+        alert('Network error: ' + e.message);
+      }
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>

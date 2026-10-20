@@ -1,0 +1,46 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: payment-gateway-ingress
+  namespace: payment-gateway
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: siddhu.ddns.net
+      http:
+        paths:
+          - path: /pay
+            pathType: Prefix
+            backend:
+              service:
+                name: dashboard
+                port:
+                  number: 80
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: dashboard
+                port:
+                  number: 80
+          - path: /api/v1/payments
+            pathType: Prefix
+            backend:
+              service:
+                name: payment-service
+                port:
+                  number: 8082
+          - path: /api/v1/merchants
+            pathType: Prefix
+            backend:
+              service:
+                name: merchant-service
+                port:
+                  number: 8081
+          - path: /api/v1/ledger
+            pathType: Prefix
+            backend:
+              service:
+                name: ledger-service
+                port:
+                  number: 8083

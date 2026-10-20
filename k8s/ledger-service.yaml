@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ledger-service
+  namespace: payment-gateway
+  labels:
+    app: ledger-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ledger-service
+  template:
+    metadata:
+      labels:
+        app: ledger-service
+    spec:
+      containers:
+        - name: ledger-service
+          image: payment-gateway-ledger-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8083
+          env:
+            - name: PORT
+              value: "8083"
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8083
+            initialDelaySeconds: 3
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ledger-service
+  namespace: payment-gateway
+spec:
+  selector:
+    app: ledger-service
+  ports:
+    - protocol: TCP
+      port: 8083
+      targetPort: 8083
