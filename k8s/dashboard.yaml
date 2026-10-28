@@ -41,9 +41,11 @@ metadata:
   name: dashboard
   namespace: payment-gateway
 spec:
+  type: NodePort
   selector:
     app: dashboard
   ports:
     - protocol: TCP
       port: 80
       targetPort: 80
+      nodePort: 31205
