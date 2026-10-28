@@ -27,7 +27,13 @@ spec:
       value: tcp://localhost:2375
     volumeMounts:
     - name: docker-config
-      mountPath: /root/.docker
+      mountPath: /root/.docker-secret
+      readOnly: true
+  - name: jnlp
+    volumeMounts:
+    - name: github-key-volume
+      mountPath: /home/jenkins/.ssh-secret
+      readOnly: true
   volumes:
   - name: docker-config
     secret:
@@ -35,6 +41,10 @@ spec:
       items:
       - key: .dockerconfigjson
         path: config.json
+  - name: github-key-volume
+    secret:
+      secretName: github-deploy-key
+      defaultMode: 256
 '''
         }
     }
@@ -57,6 +67,12 @@ spec:
                 container('docker') {
                     echo "Building and pushing container images with tag: ${IMAGE_TAG} and latest..."
                     sh '''
+                        # Prepare Docker credentials in writable directory
+                        mkdir -p /root/.docker
+                        if [ -f /root/.docker-secret/config.json ]; then
+                            cp /root/.docker-secret/config.json /root/.docker/config.json
+                        fi
+
                         echo "Building Merchant Service..."
                         docker build -t ${DOCKER_HUB_USER}/payment-gateway-merchant-service:${IMAGE_TAG} \
                                      -t ${DOCKER_HUB_USER}/payment-gateway-merchant-service:latest \
@@ -102,7 +118,21 @@ spec:
                     git config user.email "jenkins@siddhu.ddns.net"
                     
                     git add k8s/*.yaml
-                    git diff --cached --quiet || git commit -m "ci(gitops): update image tag to ${IMAGE_TAG} [skip ci]"
+                    if git diff --cached --quiet; then
+                        echo "No manifest changes to commit."
+                    else
+                        git commit -m "ci(gitops): update image tag to ${IMAGE_TAG} [skip ci]"
+                        if [ -f /home/jenkins/.ssh-secret/id_rsa ]; then
+                            mkdir -p /home/jenkins/.ssh
+                            cp /home/jenkins/.ssh-secret/id_rsa /home/jenkins/.ssh/id_rsa
+                            chmod 600 /home/jenkins/.ssh/id_rsa
+                            export GIT_SSH_COMMAND="ssh -i /home/jenkins/.ssh/id_rsa -o StrictHostKeyChecking=no"
+                            git push git@github.com:Siddartha-02/payment-gateway-microservices.git HEAD:main
+                            echo "Successfully pushed manifest updates to GitHub!"
+                        else
+                            echo "Warning: GitHub deploy key not found at /home/jenkins/.ssh-secret/id_rsa"
+                        fi
+                    fi
                 '''
             }
         }
@@ -113,7 +143,8 @@ spec:
             echo "=========================================================="
             echo "  ✔ BUILD & PUSH SUCCEEDED!"
             echo "  Docker Hub images pushed: ${DOCKER_HUB_USER}/*:${IMAGE_TAG}"
-            echo "  ArgoCD will now detect the changes for manual sync."
+            echo "  ArgoCD manifests updated and pushed to GitHub."
+            echo "  You can now trigger manual Sync in ArgoCD!"
             echo "=========================================================="
         }
         failure {
