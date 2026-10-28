@@ -1,12 +1,47 @@
 pipeline {
-    agent any
+    agent {
+        kubernetes {
+            yaml '''
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    jenkins-agent: payment-gateway-builder
+spec:
+  containers:
+  - name: dind
+    image: docker:dind
+    securityContext:
+      privileged: true
+    env:
+    - name: DOCKER_TLS_CERTDIR
+      value: ""
+  - name: docker
+    image: docker:cli
+    command:
+    - sleep
+    args:
+    - 9999999
+    env:
+    - name: DOCKER_HOST
+      value: tcp://localhost:2375
+    volumeMounts:
+    - name: docker-config
+      mountPath: /root/.docker
+  volumes:
+  - name: docker-config
+    secret:
+      secretName: docker-credentials
+      items:
+      - key: .dockerconfigjson
+        path: config.json
+'''
+        }
+    }
 
     environment {
-        DOCKER_HUB_USER       = 'siddartha02'
-        IMAGE_TAG             = "${BUILD_NUMBER}"
-        // Optional: Reference Jenkins credential IDs if configured in Jenkins Credentials store
-        DOCKER_CREDENTIALS_ID = 'dockerhub-credentials'
-        GITHUB_CREDENTIALS_ID = 'github-credentials'
+        DOCKER_HUB_USER = 'siddartha02'
+        IMAGE_TAG       = "${BUILD_NUMBER}"
     }
 
     stages {
@@ -17,65 +52,44 @@ pipeline {
             }
         }
 
-        stage('2. Code Verification & Tests') {
+        stage('2. Build & Push Docker Images') {
             steps {
-                echo "Running unit verification on microservices..."
-                sh '''
-                    echo "Checking Go syntax and module dependencies..."
-                    cd services/merchant-service && go version || true
-                    cd ../..
-                    echo "All microservices verified successfully."
-                '''
+                container('docker') {
+                    echo "Building and pushing container images with tag: ${IMAGE_TAG} and latest..."
+                    sh '''
+                        echo "Building Merchant Service..."
+                        docker build -t ${DOCKER_HUB_USER}/payment-gateway-merchant-service:${IMAGE_TAG} \
+                                     -t ${DOCKER_HUB_USER}/payment-gateway-merchant-service:latest \
+                                     services/merchant-service
+                        docker push ${DOCKER_HUB_USER}/payment-gateway-merchant-service:${IMAGE_TAG}
+                        docker push ${DOCKER_HUB_USER}/payment-gateway-merchant-service:latest
+
+                        echo "Building Payment Service..."
+                        docker build -t ${DOCKER_HUB_USER}/payment-gateway-payment-service:${IMAGE_TAG} \
+                                     -t ${DOCKER_HUB_USER}/payment-gateway-payment-service:latest \
+                                     services/payment-service
+                        docker push ${DOCKER_HUB_USER}/payment-gateway-payment-service:${IMAGE_TAG}
+                        docker push ${DOCKER_HUB_USER}/payment-gateway-payment-service:latest
+
+                        echo "Building Ledger Service..."
+                        docker build -t ${DOCKER_HUB_USER}/payment-gateway-ledger-service:${IMAGE_TAG} \
+                                     -t ${DOCKER_HUB_USER}/payment-gateway-ledger-service:latest \
+                                     services/ledger-service
+                        docker push ${DOCKER_HUB_USER}/payment-gateway-ledger-service:${IMAGE_TAG}
+                        docker push ${DOCKER_HUB_USER}/payment-gateway-ledger-service:latest
+
+                        echo "Building Dashboard UI..."
+                        docker build -t ${DOCKER_HUB_USER}/payment-gateway-dashboard:${IMAGE_TAG} \
+                                     -t ${DOCKER_HUB_USER}/payment-gateway-dashboard:latest \
+                                     services/dashboard
+                        docker push ${DOCKER_HUB_USER}/payment-gateway-dashboard:${IMAGE_TAG}
+                        docker push ${DOCKER_HUB_USER}/payment-gateway-dashboard:latest
+                    '''
+                }
             }
         }
 
-        stage('3. Build Docker Images') {
-            steps {
-                echo "Building container images with tag: ${IMAGE_TAG} and latest..."
-                sh '''
-                    echo "Building Merchant Service..."
-                    docker build -t ${DOCKER_HUB_USER}/payment-gateway-merchant-service:${IMAGE_TAG} \
-                                 -t ${DOCKER_HUB_USER}/payment-gateway-merchant-service:latest \
-                                 services/merchant-service
-
-                    echo "Building Payment Service..."
-                    docker build -t ${DOCKER_HUB_USER}/payment-gateway-payment-service:${IMAGE_TAG} \
-                                 -t ${DOCKER_HUB_USER}/payment-gateway-payment-service:latest \
-                                 services/payment-service
-
-                    echo "Building Ledger Service..."
-                    docker build -t ${DOCKER_HUB_USER}/payment-gateway-ledger-service:${IMAGE_TAG} \
-                                 -t ${DOCKER_HUB_USER}/payment-gateway-ledger-service:latest \
-                                 services/ledger-service
-
-                    echo "Building Dashboard UI..."
-                    docker build -t ${DOCKER_HUB_USER}/payment-gateway-dashboard:${IMAGE_TAG} \
-                                 -t ${DOCKER_HUB_USER}/payment-gateway-dashboard:latest \
-                                 services/dashboard
-                '''
-            }
-        }
-
-        stage('4. Push to Docker Hub') {
-            steps {
-                echo "Pushing new image versions to Docker Hub under ${DOCKER_HUB_USER}/..."
-                sh '''
-                    docker push ${DOCKER_HUB_USER}/payment-gateway-merchant-service:${IMAGE_TAG}
-                    docker push ${DOCKER_HUB_USER}/payment-gateway-merchant-service:latest
-
-                    docker push ${DOCKER_HUB_USER}/payment-gateway-payment-service:${IMAGE_TAG}
-                    docker push ${DOCKER_HUB_USER}/payment-gateway-payment-service:latest
-
-                    docker push ${DOCKER_HUB_USER}/payment-gateway-ledger-service:${IMAGE_TAG}
-                    docker push ${DOCKER_HUB_USER}/payment-gateway-ledger-service:latest
-
-                    docker push ${DOCKER_HUB_USER}/payment-gateway-dashboard:${IMAGE_TAG}
-                    docker push ${DOCKER_HUB_USER}/payment-gateway-dashboard:latest
-                '''
-            }
-        }
-
-        stage('5. Update GitOps Manifests') {
+        stage('3. Update GitOps Manifests') {
             steps {
                 echo "Updating K8s manifests with new image tag (${IMAGE_TAG})..."
                 sh '''
@@ -92,24 +106,14 @@ pipeline {
                 '''
             }
         }
-
-        stage('6. Push Manifests to GitHub') {
-            steps {
-                echo "Pushing updated manifests back to GitHub..."
-                sh '''
-                    git push origin HEAD:main || echo "No changes to push"
-                '''
-            }
-        }
     }
 
     post {
         success {
             echo "=========================================================="
-            echo "  ✔ PIPELINE SUCCEEDED!"
+            echo "  ✔ BUILD & PUSH SUCCEEDED!"
             echo "  Docker Hub images pushed: ${DOCKER_HUB_USER}/*:${IMAGE_TAG}"
-            echo "  GitOps manifests updated in GitHub."
-            echo "  ArgoCD will now reflect the new version for deployment."
+            echo "  ArgoCD will now detect the changes for manual sync."
             echo "=========================================================="
         }
         failure {
